@@ -4,6 +4,23 @@ import { ApiResponse } from "../utils/ApiResponse.js"
 import { User } from "../models/user.model.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 
+
+// ********************** Generating Access & Refresh Tokens **************************
+const generateAccessAndRefreshTokens = async (userId) => {
+    try {
+        const user = await User.findById(userId)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+
+        user.refreshToken = refreshToken
+        await user.save({ validateBeforeSave: false })
+
+        return { accessToken, refreshToken }
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while generating refresh & access token")
+    }
+}
+
 const registerUser = asyncHandler(async (req, res) => {
 
     // **************** Steps to register user ******************
@@ -70,7 +87,7 @@ const registerUser = asyncHandler(async (req, res) => {
     })
 
     // 7, 8
-    const createdUser = await User.findById(user._id).select("-password -refreshToken")
+    const createdUser = await User.findById(user._id).select("-password -refreshToken") //.select is used to not get these fields which are written using -(minus sign) inside parentheses
 
     if (!createdUser) {
         throw new ApiError(500, "Something went wrong while registering the user")
@@ -82,4 +99,91 @@ const registerUser = asyncHandler(async (req, res) => {
     )
 })
 
-export { registerUser }
+const loginUser = asyncHandler(async (req, res) => {
+
+    //**************** Steps to login User ***************************
+    // 1. get data from req body
+    // 2. check username or email
+    // 3. find the user
+    // 4. if we get the user then we check for password
+    // 5. generate & give access and refresh token to user
+    // 6. send tokens to secure cookies
+    // 7. send res
+
+    // 1
+    const { email, username, password } = req.body
+
+    // 2
+    if (!username || !email) {
+        throw new ApiError(400, "Username or email is required")
+    }
+
+    // 3
+    const user = await User.findOne({
+        $or: [{ username }, { email }]
+    })
+    if (!user) {
+        throw new ApiError(404, "User does not exist")
+    }
+
+    // 4
+    const isPasswordValid = await user.isPasswordCorrect(password)
+    if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid user credentials")
+    }
+
+    // 5
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id)
+
+    // optional step
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken") //.select is used to not get these fields which are written using -(minus sign) inside parentheses
+
+    // 6
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    user: loggedInUser, accessToken, refreshToken
+                },
+                "User logged in successfully"
+            )
+        )
+})
+
+// ********************** Logout user **********************
+const logoutUser = asyncHandler(async (req, res) => {
+    await User.findByIdAndUpdate(req.user_id, {
+        $set: {
+            refreshToken: undefined
+        }
+    },
+        {
+            new: true
+        })
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+        .status(200)
+        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", options)
+        .json(new ApiResponse(200, {}, "User logged out"))
+})
+
+export {
+    registerUser,
+    loginUser,
+    logoutUser
+}
