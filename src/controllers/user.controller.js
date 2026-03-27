@@ -163,8 +163,8 @@ const loginUser = asyncHandler(async (req, res) => {
 // ********************** Logout user **********************
 const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(req.user_id, {
-        $set: {                                  // $set is mongodb operator 
-            refreshToken: undefined
+        $unset: {                                  // ******* $unset is mongodb operator 
+            refreshToken: 1  // *********** this removes field from document
         }
     },
         {
