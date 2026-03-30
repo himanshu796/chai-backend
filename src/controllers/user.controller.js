@@ -22,6 +22,7 @@ const generateAccessAndRefreshTokens = async (userId) => {
     }
 }
 
+// ************* registering a user *******************
 const registerUser = asyncHandler(async (req, res) => {
 
     // **************** Steps to register user ******************
@@ -100,6 +101,7 @@ const registerUser = asyncHandler(async (req, res) => {
     )
 })
 
+// ****************** login a user ********************
 const loginUser = asyncHandler(async (req, res) => {
 
     //**************** Steps to login User ***************************
@@ -186,7 +188,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 // ************** Get new access token using their refresh token ********************
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken  // extract incoming refresh token
+    const incomingRefreshToken = req.cookies?.refreshToken || req.body.refreshToken  // extract incoming refresh token
 
     if (!incomingRefreshToken) {      // check if token exists
         throw new ApiError(401, "Unauthorized request")
@@ -210,7 +212,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
             secure: true
         }
         // ********* generate new tokens *************
-        const { accessToken, newRefreshToken } = await generateAccessAndRefreshTokens(user._id)
+        const { accessToken, refreshTokn: newRefreshToken } = await generateAccessAndRefreshTokens(user._id)
 
         return res
             .status(200)
@@ -220,7 +222,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
                 new ApiResponse(
                     200,
                     { accessToken, refreshToken: newRefreshToken },
-                    "Access token refrehed"
+                    "Access token refreshed"
                 )
             )
     } catch (error) {
@@ -232,7 +234,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 const changedCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body
 
-    const user = await User.findById(req.body?._id)
+    const user = await User.findById(req.user?._id)
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
 
     if (!isPasswordCorrect) {
